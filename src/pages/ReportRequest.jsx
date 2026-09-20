@@ -77,6 +77,7 @@ function ReportRequest({ onBack, onNavigate }) {
   ];
 
   const [selectedCrisisTypes, setSelectedCrisisTypes] = useState(['Medical Emergency']);
+  const [otherCrisisType, setOtherCrisisType] = useState('');
   const [selectedAssistance, setSelectedAssistance] = useState(['Medical Assistance', 'Water Rescue']);
 
   const toggleCrisisType = (id) => {
@@ -108,6 +109,9 @@ function ReportRequest({ onBack, onNavigate }) {
     }
     if (!selectedCrisisTypes || selectedCrisisTypes.length === 0) {
       errors.crisisTypes = 'Select at least one crisis type.'
+    }
+    if (selectedCrisisTypes.includes('Other') && !otherCrisisType.trim()) {
+      errors.otherCrisisType = 'Please describe the custom crisis type.'
     }
     if (!location.trim()) {
       errors.location = 'Please specify the location.'
@@ -144,12 +148,14 @@ function ReportRequest({ onBack, onNavigate }) {
     setAnalysisResult(null)
     setMatches(null)
 
+    const effectiveCrisisTypes = selectedCrisisTypes.map(t => (t === 'Other' && otherCrisisType.trim()) ? `Other: ${otherCrisisType.trim()}` : t);
     const computedUrgency = immediateDanger === 'Yes' ? 'Critical' : 'High'
-    const crisisTypesString = selectedCrisisTypes.join(' • ')
-    const reportTitle = `${selectedCrisisTypes.join(', ')}: ${description.trim().slice(0, 40)}${description.length > 40 ? '...' : ''}`
+    const crisisTypesString = effectiveCrisisTypes.join(' • ')
+    const reportTitle = `${effectiveCrisisTypes.join(', ')}: ${description.trim().slice(0, 40)}${description.length > 40 ? '...' : ''}`
 
     const fullDescription = [
-      `Crisis Categories: ${selectedCrisisTypes.join(', ')}`,
+      `Crisis Categories: ${effectiveCrisisTypes.join(', ')}`,
+      otherCrisisType.trim() ? `Custom Crisis Type: ${otherCrisisType.trim()}` : null,
       `Immediate Danger: ${immediateDanger}`,
       `People Affected: ${peopleAffected || 'Unspecified'}`,
       `Situation Details: ${description.trim()}`,
@@ -166,8 +172,10 @@ function ReportRequest({ onBack, onNavigate }) {
         urgency: computedUrgency,
         peopleAffected: peopleAffected ? parseInt(peopleAffected, 10) : 1,
         type: crisisTypesString,
-        types: selectedCrisisTypes,
-        crisisTypes: selectedCrisisTypes,
+        types: effectiveCrisisTypes,
+        crisisTypes: effectiveCrisisTypes,
+        otherCrisisType: otherCrisisType.trim(),
+        other_crisis_type: otherCrisisType.trim(),
         assistance_needed: selectedAssistance,
         latitude,
         longitude,
@@ -351,6 +359,19 @@ function ReportRequest({ onBack, onNavigate }) {
                   );
                 })}
               </div>
+
+              {selectedCrisisTypes.includes('Other') && (
+                <div className="mt-3">
+                  <Input
+                    label="Other crisis type *"
+                    placeholder="Describe the crisis type (e.g. Road collapse blocking access to the village)"
+                    value={otherCrisisType}
+                    onChange={(e) => setOtherCrisisType(e.target.value)}
+                    error={fieldErrors.otherCrisisType}
+                    required
+                  />
+                </div>
+              )}
 
               {fieldErrors.crisisTypes && (
                 <p className="text-xs text-red-600 font-bold pt-1">⚠️ {fieldErrors.crisisTypes}</p>

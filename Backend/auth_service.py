@@ -251,6 +251,7 @@ class AuthRequestHandler(http.server.BaseHTTPRequestHandler):
             password = body.get('password') or ''
             name = (body.get('name') or '').strip()
             skills = body.get('skills') or 'Volunteer'
+            other_skill = (body.get('otherSkill') or body.get('other_skill') or '').strip()
             location = (body.get('location') or 'Kollam').strip()
             latitude = body.get('latitude')
             longitude = body.get('longitude')
@@ -272,8 +273,26 @@ class AuthRequestHandler(http.server.BaseHTTPRequestHandler):
                 conn.close()
                 return self._send_json(400, {"error": "An account with this email already exists"})
 
+            # Handle skills normalization & custom other skill
+            parsed_skills = []
+            if isinstance(skills, list):
+                for s in skills:
+                    if s == 'Other' and other_skill:
+                        parsed_skills.append(f"Other: {other_skill}")
+                    elif s != 'Other':
+                        parsed_skills.append(s)
+                if 'Other' in skills and other_skill and not any(s.startswith("Other:") for s in parsed_skills):
+                    parsed_skills.append(f"Other: {other_skill}")
+            elif isinstance(skills, str):
+                parsed_skills = [s.strip() for s in skills.split(',') if s.strip()]
+                if 'Other' in parsed_skills and other_skill:
+                    parsed_skills = [f"Other: {other_skill}" if s == 'Other' else s for s in parsed_skills]
+
+            if other_skill and not any(s.startswith("Other:") for s in parsed_skills):
+                parsed_skills.append(f"Other: {other_skill}")
+
             # Create volunteer record
-            skills_str = ', '.join(skills) if isinstance(skills, list) else str(skills)
+            skills_str = ', '.join(parsed_skills) if parsed_skills else 'Volunteer'
             cursor.execute("""
                 INSERT INTO volunteers (name, description, availability, location, experience, latitude, longitude)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -281,9 +300,8 @@ class AuthRequestHandler(http.server.BaseHTTPRequestHandler):
             vol_id = cursor.lastrowid
 
             # Create capability rows if skills list provided
-            if isinstance(skills, list):
-                for skill in skills:
-                    cursor.execute("INSERT INTO volunteer_capabilities (volunteer_id, capability) VALUES (?, ?)", (vol_id, skill))
+            for skill in parsed_skills:
+                cursor.execute("INSERT INTO volunteer_capabilities (volunteer_id, capability) VALUES (?, ?)", (vol_id, skill))
 
             # Create user account
             pw_hash = hash_password(password)

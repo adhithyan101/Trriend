@@ -10,12 +10,18 @@ const USER_KEY = 'co_resolve_user';
 
 export const auth = {
   getToken() {
-    return localStorage.getItem(TOKEN_KEY) || null;
+    // Purge any legacy localStorage keys to ensure complete tab isolation
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+    } catch (e) {}
+
+    return sessionStorage.getItem(TOKEN_KEY) || null;
   },
 
   getUser() {
     try {
-      const raw = localStorage.getItem(USER_KEY);
+      const raw = sessionStorage.getItem(USER_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (e) {
       return null;
@@ -58,8 +64,8 @@ export const auth = {
     });
 
     if (data.token && data.user) {
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      sessionStorage.setItem(TOKEN_KEY, data.token);
+      sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
     }
     return data;
   },
@@ -71,8 +77,8 @@ export const auth = {
     });
 
     if (data.token && data.user) {
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      sessionStorage.setItem(TOKEN_KEY, data.token);
+      sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
     }
     return data;
   },
@@ -84,8 +90,8 @@ export const auth = {
     });
 
     if (data.token && data.user) {
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      sessionStorage.setItem(TOKEN_KEY, data.token);
+      sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
     }
     return data;
   },
@@ -97,7 +103,7 @@ export const auth = {
     try {
       const data = await this.fetchAuth('/me', { method: 'GET' });
       if (data.authenticated && data.user) {
-        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
         return data;
       }
     } catch (e) {
@@ -115,8 +121,12 @@ export const auth = {
   },
 
   clearSession() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+    } catch (e) {}
   }
 };
 

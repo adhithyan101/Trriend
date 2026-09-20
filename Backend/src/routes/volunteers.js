@@ -123,9 +123,27 @@ router.get('/:id', (req, res) => {
     return res.status(200).json(formatVolunteer(volunteer));
   } catch (err) {
     console.error('Error fetching volunteer:', err.message);
-    return res.status(500).json({
-      error: 'Failed to retrieve volunteer',
-    });
+    return res.status(500).json({ error: 'Failed to retrieve volunteer' });
+  }
+});
+
+/**
+ * GET /api/volunteers/:id/notifications
+ * Retrieve notifications for a specific volunteer
+ */
+router.get('/:id/notifications', (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid volunteer ID' });
+    }
+
+    const { getNotificationsForVolunteer } = require('../database/db');
+    const notifications = getNotificationsForVolunteer(id);
+    return res.status(200).json({ notifications });
+  } catch (err) {
+    console.error('Error fetching volunteer notifications:', err.message);
+    return res.status(500).json({ error: 'Failed to retrieve notifications' });
   }
 });
 

@@ -17,6 +17,7 @@ export function VolunteerAuthView({ onBack, onSuccessNavigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedSkills, setSelectedSkills] = useState(['Water Rescue', 'First Aid']);
+  const [otherSkill, setOtherSkill] = useState('');
   const [location, setLocation] = useState('');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
@@ -35,7 +36,8 @@ export function VolunteerAuthView({ onBack, onSuccessNavigation }) {
     'Search & Rescue',
     'Transportation',
     'Shelter Management',
-    'Logistics'
+    'Logistics',
+    'Other'
   ];
 
   const toggleSkill = (skill) => {
@@ -82,6 +84,10 @@ export function VolunteerAuthView({ onBack, onSuccessNavigation }) {
       setError('Please select at least one skill/capability.');
       return;
     }
+    if (selectedSkills.includes('Other') && !otherSkill.trim()) {
+      setError('Please specify your custom skill in the "Other skill" field.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -91,6 +97,7 @@ export function VolunteerAuthView({ onBack, onSuccessNavigation }) {
         email: email.trim(),
         password,
         skills: selectedSkills,
+        otherSkill: otherSkill.trim(),
         location: location.trim() || 'Kollam',
         latitude,
         longitude,
@@ -242,6 +249,17 @@ export function VolunteerAuthView({ onBack, onSuccessNavigation }) {
                     );
                   })}
                 </div>
+                {selectedSkills.includes('Other') && (
+                  <div className="mt-3">
+                    <Input
+                      label="Other skill *"
+                      placeholder="Enter your custom skill (e.g. Drone Mapping)"
+                      value={otherSkill}
+                      onChange={(e) => setOtherSkill(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Google Location Picker */}

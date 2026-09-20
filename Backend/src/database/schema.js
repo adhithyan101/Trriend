@@ -151,13 +151,30 @@ function initSchema(db) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_crisis_resolutions_crisis_id ON crisis_resolutions(crisis_id);
+
+    -- 10. Notifications Table
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      volunteer_id INTEGER,
+      organization_id INTEGER,
+      crisis_id INTEGER,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      type TEXT DEFAULT 'INFO',
+      read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notifications_volunteer_id ON notifications(volunteer_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_org_id ON notifications(organization_id);
   `);
 
-  // Ensure latitude & longitude & assistance_needed columns exist on pre-existing database tables
+  // Ensure latitude & longitude & assistance_needed & other_crisis_type columns exist on pre-existing database tables
   const alterColumns = [
     'ALTER TABLE crises ADD COLUMN latitude REAL',
     'ALTER TABLE crises ADD COLUMN longitude REAL',
     'ALTER TABLE crises ADD COLUMN assistance_needed TEXT',
+    'ALTER TABLE crises ADD COLUMN other_crisis_type TEXT',
     'ALTER TABLE volunteers ADD COLUMN latitude REAL',
     'ALTER TABLE volunteers ADD COLUMN longitude REAL',
   ];

@@ -383,8 +383,11 @@ export function VolunteerPortalView({ onNavigate }) {
                     </div>
 
                     <div className="p-2.5 bg-white rounded-lg border border-stone-200">
-                      <span className="text-stone-400 font-bold block text-[10px] uppercase">Location:</span>
+                      <span className="text-stone-400 font-bold block text-[10px] uppercase">Location & Distance:</span>
                       <span className="font-bold text-stone-900 text-sm">📍 Kollam Town Center</span>
+                      <span className="ml-2 px-2 py-0.5 bg-teal-100 border border-teal-200 text-teal-900 text-[10px] font-extrabold rounded-full">
+                        2.4 km away
+                      </span>
                     </div>
                   </div>
 
@@ -462,19 +465,46 @@ export function VolunteerPortalView({ onNavigate }) {
 
                 {/* WORKFLOW ACTION CONTROLS */}
                 <div className="pt-1">
+                  {/* Competitive Conflict Alert Banner */}
+                  {(assignmentState === 'ALREADY_ACCEPTED' || error) && (
+                    <div className="mb-4 p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs font-bold text-amber-900 flex items-start gap-2">
+                      <span className="text-base">🔔</span>
+                      <div>
+                        <p className="font-extrabold text-sm">Request Update</p>
+                        <p>{error || 'This crisis request was already accepted by another volunteer.'}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Step 1: PENDING -> ACCEPT / DECLINE */}
                   {assignmentState === 'PENDING' && (
                     <div className="flex flex-col sm:flex-row items-center gap-3">
                       <button
+                        disabled={saving}
                         onClick={async () => {
-                          setAssignmentState('ACCEPTED');
-                          try { await api.updateAssignmentStatus({ id: 1, status: 'accept' }); } catch (e) { console.warn(e); }
+                          setSaving(true);
+                          setError(null);
+                          try {
+                            const res = await api.updateAssignmentStatus({ id: 1, status: 'accept' });
+                            if (res && (res.status === 'ALREADY_ACCEPTED' || res.error)) {
+                              setAssignmentState('ALREADY_ACCEPTED');
+                              setError(res.error || 'This request has already been accepted by another volunteer.');
+                            } else {
+                              setAssignmentState('ACCEPTED');
+                            }
+                          } catch (e) {
+                            setAssignmentState('ALREADY_ACCEPTED');
+                            setError('This request has already been accepted by another volunteer.');
+                          } finally {
+                            setSaving(false);
+                          }
                         }}
-                        className="w-full sm:w-1/2 py-3.5 px-6 bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                        className="w-full sm:w-1/2 py-3.5 px-6 bg-teal-700 hover:bg-teal-800 disabled:opacity-50 text-white font-extrabold text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
                       >
-                        <span>✓</span> ACCEPT REQUEST
+                        <span>{saving ? '⏳' : '✓'}</span> {saving ? 'Accepting...' : 'ACCEPT REQUEST'}
                       </button>
                       <button
+                        disabled={saving}
                         onClick={async () => {
                           setAssignmentState('DECLINED');
                           try { await api.updateAssignmentStatus({ id: 1, status: 'decline' }); } catch (e) { console.warn(e); }
@@ -483,6 +513,21 @@ export function VolunteerPortalView({ onNavigate }) {
                       >
                         <span>✕</span> DECLINE
                       </button>
+                    </div>
+                  )}
+
+                  {/* Step 1-B: ALREADY ACCEPTED BY ANOTHER VOLUNTEER */}
+                  {assignmentState === 'ALREADY_ACCEPTED' && (
+                    <div className="space-y-3">
+                      <button
+                        disabled={true}
+                        className="w-full py-3.5 px-6 bg-stone-200 border border-stone-300 text-stone-500 font-extrabold text-sm rounded-xl cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <span>🔒</span> Request No Longer Available
+                      </button>
+                      <p className="text-center text-xs font-bold text-amber-800">
+                        This request has already been accepted by another volunteer.
+                      </p>
                     </div>
                   )}
 

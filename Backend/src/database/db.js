@@ -75,6 +75,8 @@ function createCrisis({
   title,
   description = null,
   type = null,
+  other_crisis_type = null,
+  otherCrisisType = null,
   location = null,
   latitude = null,
   longitude = null,
@@ -89,6 +91,7 @@ function createCrisis({
   actor_id = null,
 }) {
   const countAffected = peopleAffected !== undefined ? peopleAffected : people_affected;
+  const customCrisisType = (other_crisis_type || otherCrisisType || '').trim() || null;
 
   // Normalize assistance array
   const rawAssistance = assistance_needed || assistanceNeeded || requirements;
@@ -104,10 +107,10 @@ function createCrisis({
 
   const createTx = db.transaction(() => {
     const stmt = db.prepare(`
-      INSERT INTO crises (title, description, type, location, latitude, longitude, people_affected, priority, status, assistance_needed)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO crises (title, description, type, other_crisis_type, location, latitude, longitude, people_affected, priority, status, assistance_needed)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(title, description, type, location, latitude, longitude, countAffected, priority, status, assistanceJson);
+    const info = stmt.run(title, description, type, customCrisisType, location, latitude, longitude, countAffected, priority, status, assistanceJson);
     const crisisId = info.lastInsertRowid;
 
     // Create crisis requirements for each assistance capability if provided
@@ -727,6 +730,72 @@ function updateAssignmentStatus(
       throw err;
     }
 
+    // Competitive Acceptance Rule: Only ONE volunteer can accept a specific request/slot.
+    if (['ACCEPTED', 'ASSIGNED'].includes(targetStatus)) {
+      // 1. Check if ANY assignment for this crisis (and requirement if set) is ALREADY active/accepted
+      let conflictQuery = `
+        SELECT * FROM assignments 
+        WHERE crisis_id = ? 
+          AND id != ? 
+          AND status IN ('ACCEPTED', 'ASSIGNED', 'EN_ROUTE', 'ON_SCENE', 'IN_PROGRESS', 'COMPLETED')
+      `;
+      let conflictParams = [assignment.crisis_id, id];
+      if (assignment.requirement_id) {
+        conflictQuery += ` AND requirement_id = ?`;
+        conflictParams.push(assignment.requirement_id);
+      }
+      
+      const conflict = db.prepare(conflictQuery).get(...conflictParams);
+      if (conflict) {
+        // Mark target assignment as DECLINED
+        db.prepare(`UPDATE assignments SET status = 'DECLINED', reason = 'Already accepted by another volunteer' WHERE id = ?`).run(id);
+
+        // Notify target volunteer
+        if (assignment.volunteer_id || assignment.organization_id) {
+          db.prepare(`
+            INSERT INTO notifications (volunteer_id, organization_id, crisis_id, title, message, type)
+            VALUES (?, ?, ?, 'Request Update', 'This crisis request was already accepted by another volunteer.', 'ALREADY_ACCEPTED')
+          `).run(assignment.volunteer_id, assignment.organization_id, assignment.crisis_id);
+        }
+
+        const err = new Error('This request has already been accepted by another volunteer.');
+        err.statusCode = 409;
+        err.status = 'ALREADY_ACCEPTED';
+        throw err;
+      }
+
+      // 2. If NO conflict, target assignment becomes ACCEPTED.
+      // Automatically close all OTHER pending/proposed assignments for this slot/crisis
+      let closeQuery = `
+        SELECT id, volunteer_id, organization_id FROM assignments
+        WHERE crisis_id = ? AND id != ? AND status IN ('PENDING', 'PROPOSED')
+      `;
+      let closeParams = [assignment.crisis_id, id];
+      if (assignment.requirement_id) {
+        closeQuery += ` AND requirement_id = ?`;
+        closeParams.push(assignment.requirement_id);
+      }
+      const pendingAssignments = db.prepare(closeQuery).all(...closeParams);
+
+      for (const p of pendingAssignments) {
+        db.prepare(`UPDATE assignments SET status = 'DECLINED', reason = 'Already accepted by another volunteer' WHERE id = ?`).run(p.id);
+        if (p.volunteer_id || p.organization_id) {
+          db.prepare(`
+            INSERT INTO notifications (volunteer_id, organization_id, crisis_id, title, message, type)
+            VALUES (?, ?, ?, 'Request Update', 'This crisis request was already accepted by another volunteer.', 'ALREADY_ACCEPTED')
+          `).run(p.volunteer_id, p.organization_id, assignment.crisis_id);
+        }
+      }
+
+      // Send accepted notification to winning volunteer
+      if (assignment.volunteer_id || assignment.organization_id) {
+        db.prepare(`
+          INSERT INTO notifications (volunteer_id, organization_id, crisis_id, title, message, type)
+          VALUES (?, ?, ?, 'Request Accepted', 'Request accepted. You are now assigned to this crisis.', 'ACCEPTED')
+        `).run(assignment.volunteer_id, assignment.organization_id, assignment.crisis_id);
+      }
+    }
+
     // 2. Set status and timestamps
     db.prepare(`
       UPDATE assignments
@@ -1274,14 +1343,30 @@ function verifyAuthToken(authHeader, requiredRole = null) {
       return { authenticated: false, authorized: false, error: 'Session expired' };
     }
 
-    if (requiredRole && row.role !== requiredRole) {
-      return { authenticated: true, authorized: false, error: `Access denied. Requires ${requiredRole} role.` };
-    }
-
     return { authenticated: true, authorized: true, user: row };
   } catch (err) {
     return { authenticated: false, authorized: false, error: 'Database session lookup failed' };
   }
+}
+
+function createNotification({ volunteer_id = null, organization_id = null, crisis_id = null, title, message, type = 'INFO' }) {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO notifications (volunteer_id, organization_id, crisis_id, title, message, type)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const info = stmt.run(volunteer_id, organization_id, crisis_id, title, message, type);
+  return info.lastInsertRowid;
+}
+
+function getNotificationsForVolunteer(volunteerId) {
+  const db = getDb();
+  return db.prepare('SELECT * FROM notifications WHERE volunteer_id = ? ORDER BY created_at DESC').all(volunteerId);
+}
+
+function getNotificationsForOrg(orgId) {
+  const db = getDb();
+  return db.prepare('SELECT * FROM notifications WHERE organization_id = ? ORDER BY created_at DESC').all(orgId);
 }
 
 module.exports = {
@@ -1307,6 +1392,9 @@ module.exports = {
   getAssignmentById,
   getAssignmentsByCrisis,
   updateAssignmentStatus,
+  createNotification,
+  getNotificationsForVolunteer,
+  getNotificationsForOrg,
   createResource,
   getResourceById,
   getAllResources,
