@@ -1,0 +1,19 @@
+{
+  "name": "co-resolve-backend",
+  "version": "1.0.0",
+  "description": "CO-RESOLVE crisis response platform backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "@openai/agents": "^0.18.0",
+    "@qdrant/js-client-rest": "^1.19.0",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "zod": "^4.6.5"
+  }
+}

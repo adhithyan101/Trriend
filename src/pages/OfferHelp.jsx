@@ -1,84 +1,177 @@
+import { useState } from 'react'
+import api from '../services/api'
+import PageHeading from '../components/ui/Headings'
+import Card from '../components/ui/Card'
+import Button from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
+import { ErrorState } from '../components/ui/States'
+import GoogleLocationPicker from '../components/location/GoogleLocationPicker'
+
 function OfferHelp({ onBack }) {
+  const [name, setName] = useState('')
+  const [help, setHelp] = useState('')
+  const [location, setLocation] = useState('')
+  const [latitude, setLatitude] = useState(null)
+  const [longitude, setLongitude] = useState(null)
+  const [contact, setContact] = useState('')
+  const [offerType, setOfferType] = useState('volunteer') // 'volunteer' | 'resource'
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [submitted, setSubmitted] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!name.trim() || !help.trim() || !location.trim()) {
+      setError('Please fill in all required fields.')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setSubmitted(false)
+
+    try {
+      if (offerType === 'volunteer') {
+        await api.createVolunteer({
+          name: name.trim(),
+          skills: help.trim(),
+          location: location.trim(),
+          latitude,
+          longitude,
+          availability: 'Available',
+          contact: contact.trim()
+        })
+      } else {
+        await api.createAidResource({
+          name: name.trim(),
+          capability: help.trim(),
+          location: location.trim(),
+          resource_type: 'General Aid',
+          contact: contact.trim()
+        })
+      }
+
+      setSubmitted(true)
+    } catch (err) {
+      setError(err.message || 'Failed to submit help offer.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <nav className="border-b border-slate-800 px-8 py-5">
-        <h1 className="text-2xl font-bold">CO-RESOLVE</h1>
+    <div className="max-w-3xl mx-auto space-y-6">
+      <PageHeading
+        title="Offer Help & Resources"
+        description="Tell the community how you can contribute during a crisis. Your skills and resources will be indexed into the AI match network."
+        actions={
+          <Button variant="outline" size="sm" onClick={onBack}>
+            ← Back
+          </Button>
+        }
+      />
 
-        <button
-          onClick={onBack}
-          className="mt-4 text-blue-400 hover:text-blue-300"
-        >
-          ← Back to Home
-        </button>
-      </nav>
+      {error && <ErrorState title="Submission Error" description={error} />}
 
-      <main className="mx-auto max-w-2xl px-6 py-12">
-        <h2 className="text-4xl font-bold">
-          Offer Help
-        </h2>
-
-        <p className="mt-3 text-slate-400">
-          Tell the community how you can help during a crisis.
-        </p>
-
-        <div className="mt-8 space-y-6">
+      <Card padding="p-6 md:p-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
 
           <div>
-            <label className="mb-2 block font-semibold">
-              Your Name
+            <label className="mb-2 block text-sm font-semibold text-stone-900">
+              Select Offer Type
             </label>
-
-            <input
-              type="text"
-              placeholder="Enter your name"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 outline-none focus:border-blue-500"
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setOfferType('volunteer')}
+                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border text-sm font-semibold transition ${
+                  offerType === 'volunteer'
+                    ? 'border-teal-600 bg-teal-50 text-teal-800 ring-2 ring-teal-600/30'
+                    : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                <span>🙋‍♂️</span> Volunteer Skills
+              </button>
+              <button
+                type="button"
+                onClick={() => setOfferType('resource')}
+                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border text-sm font-semibold transition ${
+                  offerType === 'resource'
+                    ? 'border-teal-600 bg-teal-50 text-teal-800 ring-2 ring-teal-600/30'
+                    : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                <span>📦</span> Aid Supplies & Equipment
+              </button>
+            </div>
           </div>
 
-          <div>
-            <label className="mb-2 block font-semibold">
-              How can you help?
-            </label>
+          <Input
+            label="Your Name or Organization"
+            placeholder="Enter your name or organization"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
 
-            <input
-              type="text"
-              placeholder="Example: Transportation, medicine, food"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 outline-none focus:border-blue-500"
-            />
-          </div>
+          <Input
+            label={offerType === 'volunteer' ? 'Skills & Capabilities' : 'Resource Details & Capability'}
+            placeholder={
+              offerType === 'volunteer'
+                ? 'Example: First Aid, Medical Support, Search & Rescue, Emergency Driving'
+                : 'Example: Emergency ambulance, 500L drinking water, generator'
+            }
+            value={help}
+            onChange={(e) => setHelp(e.target.value)}
+            required
+          />
 
-          <div>
-            <label className="mb-2 block font-semibold">
-              Your Location
-            </label>
+          {/* Shared Google Location Picker */}
+          <GoogleLocationPicker
+            location={location}
+            latitude={latitude}
+            longitude={longitude}
+            onChange={({ location: loc, latitude: lat, longitude: lng }) => {
+              setLocation(loc)
+              setLatitude(lat)
+              setLongitude(lng)
+            }}
+            label="Location"
+            required={true}
+          />
 
-            <input
-              type="text"
-              placeholder="Example: Kalamassery"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 outline-none focus:border-blue-500"
-            />
-          </div>
+          <Input
+            label="Contact Information (Phone / Email)"
+            placeholder="Example: +91 9876543210 or contact@rescue.org"
+            value={contact}
+            onChange={(e) => setContact(e.target.value)}
+          />
 
-          <div>
-            <label className="mb-2 block font-semibold">
-              Additional Information
-            </label>
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            disabled={loading}
+            className="w-full"
+          >
+            {loading ? 'Submitting Offer...' : 'Offer Help'}
+          </Button>
+        </form>
+      </Card>
 
-            <textarea
-              rows="4"
-              placeholder="Tell us more about the help you can provide..."
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 outline-none focus:border-blue-500"
-            />
-          </div>
-
-          <button className="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold hover:bg-blue-700">
-            Offer Help
-          </button>
-
+      {submitted && (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-5 text-green-900">
+          <p className="text-base font-bold flex items-center gap-2">
+            <span>✓</span> Offer submitted successfully!
+          </p>
+          <p className="mt-1 text-xs text-green-700">
+            Thank you for offering your support! Your profile has been recorded in the database and indexed for AI matching.
+          </p>
         </div>
-      </main>
+      )}
     </div>
   )
 }
 
 export default OfferHelp
+
